@@ -33,10 +33,8 @@ jobs:
           STORE_PASSWORD: videoplayer123
           KEY_ALIAS: upload
           KEY_PASSWORD: videoplayer123
-        run: gradle assembleRelease --no-daemon --console=plain 2>&1 | tee "$GITHUB_WORKSPACE/build.log"
-      - name: Show errors
-        if: failure()
-        run: grep -nE "^e: |What went wrong|FAILED|Caused by|error:|Missing class" -A4 build.log | head -100 || true
+        run: |
+          gradle assembleRelease --no-daemon --console=plain > "$GITHUB_WORKSPACE/build.log" 2>&1 || { grep -nE 'What went wrong|FAILED|Caused by|Missing class|^e: ' -A4 "$GITHUB_WORKSPACE/build.log" | head -100; exit 1; }
       - name: Collect APKs
         run: |
           mkdir dist
