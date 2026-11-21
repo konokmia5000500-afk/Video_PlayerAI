@@ -2,18 +2,24 @@ name: Build APK
 on:
   workflow_dispatch:
   push:
-    branches: [main, master]
+    branches: ["**"]
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Unzip project
-        run: unzip -q video-player.zip -d proj
-      - name: Use confirmed LibVLC version
-        run: sed -i 's/libvlc = "3.7.7"/libvlc = "3.7.6"/' proj/gradle/libs.versions.toml
-      - name: Remove broken profile files
-        run: rm -f proj/app/src/main/baselineProfiles/startup-prof.txt proj/app/src/main/baselineProfiles/baseline-prof.txt
+        run: |
+          ZIP=$(ls *.zip | head -n 1)
+          echo "Using zip: $ZIP"
+          unzip -q "$ZIP" -d proj
+          PROJ=$(dirname "$(find proj -name settings.gradle.kts | head -n 1)")
+          echo "Project folder: $PROJ"
+          echo "PROJ=$PROJ" >> "$GITHUB_ENV"
+      - name: Apply fixes
+        run: |
+          sed -i 's/libvlc = "3.7.7"/libvlc = "3.7.6"/' "$PROJ/gradle/libs.versions.toml"
+          rm -f "$PROJ"/app/src/main/baselineProfiles/startup-prof.txt "$PROJ"/app/src/main/baselineProfiles/baseline-prof.txt
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -27,20 +33,20 @@ jobs:
         run: keytool -genkeypair -keystore "$GITHUB_WORKSPACE/my-upload-key.jks" -alias upload -keyalg RSA -keysize 2048 -validity 10000 -storepass videoplayer123 -keypass videoplayer123 -dname "CN=Video Player, O=VideoPlayer, C=US"
       - name: Build release APKs
         shell: bash
-        working-directory: proj
         env:
           KEYSTORE_PATH: ${{ github.workspace }}/my-upload-key.jks
           STORE_PASSWORD: videoplayer123
           KEY_ALIAS: upload
           KEY_PASSWORD: videoplayer123
         run: |
+          cd "$PROJ"
           gradle assembleRelease --no-daemon --console=plain > "$GITHUB_WORKSPACE/build.log" 2>&1 || { grep -nE 'What went wrong|FAILED|Caused by|Missing class|^e: ' -A4 "$GITHUB_WORKSPACE/build.log" | head -100; exit 1; }
-      - name: Collect APKs
+      - name: Collect APK
         run: |
           mkdir dist
-          cp proj/app/build/outputs/apk/release/*arm64-v8a*.apk dist/
+          cp "$PROJ"/app/build/outputs/apk/release/*arm64-v8a*.apk dist/
           ls -lh dist
       - uses: actions/upload-artifact@v4
         with:
-          name: video-player-apks
+          name: video-player-arm64
           path: dist/*.apk
