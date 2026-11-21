@@ -12,11 +12,12 @@ jobs:
         run: unzip -q video-player.zip -d proj
       - name: Use confirmed LibVLC version
         run: sed -i 's/libvlc = "3.7.7"/libvlc = "3.7.6"/' proj/gradle/libs.versions.toml
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
-      - uses: android-actions/setup-android@v3
+      - name: Accept Android SDK licenses
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "9.3.1"
