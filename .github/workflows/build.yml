@@ -12,6 +12,8 @@ jobs:
         run: unzip -q video-player.zip -d proj
       - name: Use confirmed LibVLC version
         run: sed -i 's/libvlc = "3.7.7"/libvlc = "3.7.6"/' proj/gradle/libs.versions.toml
+      - name: Remove broken profile files
+        run: rm -f proj/app/src/main/baselineProfiles/startup-prof.txt proj/app/src/main/baselineProfiles/baseline-prof.txt
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -24,13 +26,17 @@ jobs:
       - name: Create keystore
         run: keytool -genkeypair -keystore "$GITHUB_WORKSPACE/my-upload-key.jks" -alias upload -keyalg RSA -keysize 2048 -validity 10000 -storepass videoplayer123 -keypass videoplayer123 -dname "CN=Video Player, O=VideoPlayer, C=US"
       - name: Build release APKs
+        shell: bash
         working-directory: proj
         env:
           KEYSTORE_PATH: ${{ github.workspace }}/my-upload-key.jks
           STORE_PASSWORD: videoplayer123
           KEY_ALIAS: upload
           KEY_PASSWORD: videoplayer123
-        run: gradle assembleRelease --no-daemon
+        run: gradle assembleRelease --no-daemon --console=plain 2>&1 | tee "$GITHUB_WORKSPACE/build.log"
+      - name: Show errors
+        if: failure()
+        run: grep -nE "^e: |What went wrong|FAILED|Caused by|error:|Missing class" -A4 build.log | head -100 || true
       - name: Collect APKs
         run: |
           mkdir dist
