@@ -1,0 +1,41 @@
+name: Build APK
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unzip project
+        run: unzip -q video-player.zip -d proj
+      - name: Use confirmed LibVLC version
+        run: sed -i 's/libvlc = "3.7.7"/libvlc = "3.7.6"/' proj/gradle/libs.versions.toml
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.3.1"
+      - name: Create keystore
+        run: keytool -genkeypair -keystore "$GITHUB_WORKSPACE/my-upload-key.jks" -alias upload -keyalg RSA -keysize 2048 -validity 10000 -storepass videoplayer123 -keypass videoplayer123 -dname "CN=Video Player, O=VideoPlayer, C=US"
+      - name: Build release APKs
+        working-directory: proj
+        env:
+          KEYSTORE_PATH: ${{ github.workspace }}/my-upload-key.jks
+          STORE_PASSWORD: videoplayer123
+          KEY_ALIAS: upload
+          KEY_PASSWORD: videoplayer123
+        run: gradle assembleRelease --no-daemon
+      - name: Collect APKs
+        run: |
+          mkdir dist
+          cp proj/app/build/outputs/apk/release/*.apk dist/
+          ls -lh dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: video-player-apks
+          path: dist/*.apk
